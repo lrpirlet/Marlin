@@ -24,6 +24,11 @@
 #include "../../MarlinCore.h"
 #include "../../module/planner.h"
 
+#if ENABLED(DITHERING)
+  #include "../../feature/dither.h"
+  extern Dithering Dither;
+#endif
+
 #if DISABLED(NO_VOLUMETRICS)
 
   /**
@@ -145,6 +150,10 @@ void GcodeSuite::M204() {
  *    Z = Max Z Jerk (units/sec^2)
  *    E = Max E Jerk (units/sec^2)
  *    J = Junction Deviation (mm) (If not using CLASSIC_JERK)
+ *
+ *    D = Dither Amplitude (steps) inital amplitude of dither, set to ~0.5-1.5 times the numer of mircosteps (Requires Dither and Babysteps)
+ *    T = Dither Time (ms) how long to dither for (Requires Dither and Babysteps)
+ *    H = Dither Minimum layer height (mm) minimum layer height interval where dither will be used (ensure compatibility with vase mode) (Requires Dither and Babysteps)
  */
 void GcodeSuite::M205() {
   #if HAS_JUNCTION_DEVIATION
@@ -163,6 +172,13 @@ void GcodeSuite::M205() {
   if (parser.seen('B')) planner.settings.min_segment_time_us = parser.value_ulong();
   if (parser.seen('S')) planner.settings.min_feedrate_mm_s = parser.value_linear_units();
   if (parser.seen('T')) planner.settings.min_travel_feedrate_mm_s = parser.value_linear_units();
+
+  #if ENABLED(DITHERING)
+    if (parser.seen('D')) {Dither.Amplitude = parser.value_linear_units(); Dither.CalculateParameters(); SERIAL_ECHOLNPAIR("Dither Amplitude: ", Dither.Amplitude);};
+    if (parser.seen('T')) {Dither.TimeMS = parser.value_linear_units(); Dither.CalculateParameters(); SERIAL_ECHOLNPAIR("Dither Time: ", Dither.TimeMS);};
+    if (parser.seen('H')) {Dither.MinLayerInterval = (parser.value_linear_units()); Dither.CalculateParameters(); SERIAL_ECHOLNPAIR("Dither MinLayerHeight: ", Dither.MinLayerInterval);};
+  #endif
+
   #if HAS_JUNCTION_DEVIATION
     if (parser.seen('J')) {
       const float junc_dev = parser.value_linear_units();
