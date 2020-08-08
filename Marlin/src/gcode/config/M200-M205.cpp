@@ -152,7 +152,6 @@ void GcodeSuite::M204() {
  *    J = Junction Deviation (mm) (If not using CLASSIC_JERK)
  *
  *    D = Dither Amplitude (steps) inital amplitude of dither, set to ~0.5-1.5 times the numer of mircosteps (Requires Dither and Babysteps)
- *    T = Dither Time (ms) how long to dither for (Requires Dither and Babysteps)
  *    H = Dither Minimum layer height (mm) minimum layer height interval where dither will be used (ensure compatibility with vase mode) (Requires Dither and Babysteps)
  */
 void GcodeSuite::M205() {
@@ -166,7 +165,12 @@ void GcodeSuite::M205() {
   #else
     #define XYZE_PARAM
   #endif
-  if (!parser.seen("BST" J_PARAM XYZE_PARAM)) return;
+  #if ENABLED(DITHERING)
+    #define DH_PARAM "DH"
+  #else
+    #define DH_PARAM
+  #endif
+  if (!parser.seen("BST" J_PARAM XYZE_PARAM DH_PARAM)) return;
 
   //planner.synchronize();
   if (parser.seen('B')) planner.settings.min_segment_time_us = parser.value_ulong();
@@ -175,7 +179,6 @@ void GcodeSuite::M205() {
 
   #if ENABLED(DITHERING)
     if (parser.seen('D')) {Dither.Amplitude = parser.value_linear_units(); Dither.CalculateParameters(); SERIAL_ECHOLNPAIR("Dither Amplitude: ", Dither.Amplitude);};
-    if (parser.seen('T')) {Dither.TimeMS = parser.value_linear_units(); Dither.CalculateParameters(); SERIAL_ECHOLNPAIR("Dither Time: ", Dither.TimeMS);};
     if (parser.seen('H')) {Dither.MinLayerInterval = (parser.value_linear_units()); Dither.CalculateParameters(); SERIAL_ECHOLNPAIR("Dither MinLayerHeight: ", Dither.MinLayerInterval);};
   #endif
 

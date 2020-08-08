@@ -1,68 +1,51 @@
 #include "dither.h"
 #include "../core/macros.h"
 #include "../core/serial.h"
-//#include "math.h"
-//#include "../module/stepper.h"
 #include "../feature/babystep.h"
-//#include "../../Configuration_adv.h"
 
-uint16_t Dithering::Amplitude = 16; // how many steps for dither
-uint16_t Dithering::TimeMS = 100;
+uint16_t Dithering::Amplitude = 32; // how many steps for dither
 float Dithering::MinLayerInterval = 0.1;
 float Dithering::PrevZ = 0.0;
 
-uint16_t Dithering::DitherSubTime = 25;
-uint8_t Dithering::Ditherssteps[4] = {16, 8, 4, 2};
+uint8_t Dithering::Ditherssteps[4] = {32, 16, 8, 4};
 
-void Dithering::Handle(float CurrZ)
-{
-  if (Dithering::Amplitude == 0 || Dithering::TimeMS == 0 || (fabs(CurrZ - Dithering::PrevZ) < Dithering::MinLayerInterval))
-  {
-    SERIAL_ECHOLNPGM("Delta Z to small, skipping dithering");
-    return;
-  }
-  else
-  {
+void Dithering::Handle(float CurrZ) {
+  if (Dithering::Amplitude == 0 || (fabs(CurrZ - Dithering::PrevZ) < Dithering::MinLayerInterval)) {
+    if (DEBUGGING(LEVELING)) SERIAL_ECHOLNPGM("Delta Z to small, skipping dithering");
     Dithering::PrevZ = CurrZ;
+    return;
 
-    while (!Babystep::steps[BS_AXIS_IND(Z_AXIS)] == 0) // if there are some existing babysteps to do just wait it out
-      ;
+  } else {
+    if (DEBUGGING(LEVELING)) SERIAL_ECHOLNPGM("Start Dithering...");
+    while (!Babystep::steps[BS_AXIS_IND(Z_AXIS)] == 0); // if there are some existing babysteps to do just wait it out
 
+    Dithering::PrevZ = CurrZ;
     uint32_t DitherStartTime = millis();
+    uint32_t DitherDurationTime = millis();
 
-    SERIAL_ECHOLNPGM("Start Dithering...");
-    SERIAL_ECHOLNPAIR("DitherStartTime : ", DitherStartTime);
+    for (int i = 0; i < 4; i++) {
+      DitherDurationTime = millis();
+      if (DEBUGGING(LEVELING)) SERIAL_ECHOLNPAIR("-> Dither #", i + 1, "/4");
 
-    for (int i = 0; i < 4; i++)
-    {
-      while (millis() < (DitherStartTime + (Dithering::DitherSubTime * (i + 1))))
-      {
-        Babystep::add_steps(Z_AXIS, Dithering::Ditherssteps[i]);
-        SERIAL_ECHOLNPAIR("DitherPendingBabysteps : ", Babystep::steps[BS_AXIS_IND(Z_AXIS)]);
-        while (!Babystep::steps[BS_AXIS_IND(Z_AXIS)] == 0) //wait
-        {
-          SERIAL_ECHOLNPAIR("DitherPendingBabysteps : ", Babystep::steps[BS_AXIS_IND(Z_AXIS)]);
-        };
-
-        Babystep::add_steps(Z_AXIS, 2 * -Dithering::Ditherssteps[i]);
-        while (!Babystep::steps[BS_AXIS_IND(Z_AXIS)] == 0) // wait
-          ;
-
-        Babystep::add_steps(Z_AXIS, Dithering::Ditherssteps[i]);
-        while (!Babystep::steps[BS_AXIS_IND(Z_AXIS)] == 0) // wait
-          ;
+      Babystep::add_steps(Z_AXIS, Dithering::Ditherssteps[i]);
+      if (DEBUGGING(LEVELING)) SERIAL_ECHOLNPAIR("--> DitherPendingBabysteps : ", Babystep::steps[BS_AXIS_IND(Z_AXIS)]);
+      while (!Babystep::steps[BS_AXIS_IND(Z_AXIS)] == 0) { // wait
+        if (DEBUGGING(LEVELING)) SERIAL_ECHOLNPAIR("--> DitherPendingBabysteps : ", Babystep::steps[BS_AXIS_IND(Z_AXIS)]);
       }
-      SERIAL_ECHOLNPAIR("Dither i : ", i);
-      SERIAL_ECHOLNPAIR("millis : ", millis());
+
+      Babystep::add_steps(Z_AXIS, 2 * -Dithering::Ditherssteps[i]);
+      while (!Babystep::steps[BS_AXIS_IND(Z_AXIS)] == 0); // wait
+
+      Babystep::add_steps(Z_AXIS, Dithering::Ditherssteps[i]);
+      while (!Babystep::steps[BS_AXIS_IND(Z_AXIS)] == 0); // wait
+
+      if (DEBUGGING(LEVELING)) SERIAL_ECHOLNPAIR("-> Dithering Sub Duration : ", millis() - DitherDurationTime);
     }
-    SERIAL_ECHOLNPGM("Dithering Done.");
+    if (DEBUGGING(LEVELING)) SERIAL_ECHOLNPAIR("Dithering done, Total Duration : ", millis() - DitherStartTime);
   }
 }
 
-void Dithering::CalculateParameters()
-{
-  Dithering::DitherSubTime = Dithering::TimeMS / 4;
-
+void Dithering::CalculateParameters() {
   Dithering::Ditherssteps[0] = Dithering::Amplitude;
   Dithering::Ditherssteps[1] = Dithering::Amplitude / 2;
   Dithering::Ditherssteps[2] = Dithering::Amplitude / 4;
